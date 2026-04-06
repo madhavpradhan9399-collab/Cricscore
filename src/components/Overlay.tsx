@@ -23,8 +23,12 @@ export const Overlay: React.FC = () => {
   const [target, setTarget] = useState<number | null>(null);
 
   const [error, setError] = useState<string | null>(null);
+  const [consecutiveErrors, setConsecutiveErrors] = useState(0);
   const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
   const reconnectTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const lastFetchTimeRef = React.useRef<number>(Date.now());
+  const ballsSubRef = React.useRef<any>(null);
+  const matchSubRef = React.useRef<any>(null);
 
   const fetchBallsAndCalculateStats = useCallback(async (matchData?: any, playersA?: any[], playersB?: any[]) => {
     const currentMatch = matchData || match;
@@ -32,116 +36,183 @@ export const Overlay: React.FC = () => {
     const currentPlayersB = playersB || teamBPlayers;
     
     if (!matchId || !currentMatch) return;
-    console.log(`Fetching balls for match ${matchId}...`);
+    
+    try {
+      const { data: ballsData, error } = await supabase
+        .from('balls')
+        .select('*, bowler:players!bowler_id(*), batter:players!batter_id(*), non_striker:players!non_striker_id(*)')
+        .eq('match_id', matchId)
+        .order('created_at', { ascending: true });
 
-    const { data: ballsData, error } = await supabase
-      .from('balls')
-      .select('*, bowler:players!bowler_id(*), batter:players!batter_id(*), non_striker:players!non_striker_id(*)')
-      .eq('match_id', matchId)
-      .order('created_at', { ascending: true });
-
-    if (error) {
-      console.error('Error fetching balls:', error);
-      return;
-    }
-
-    if (ballsData && ballsData.length > 0) {
-      const stats: Record<string, any> = {};
-      let totalRuns = 0;
-      let totalWickets = 0;
-      let totalBalls = 0;
-      let firstInningsRuns = 0;
-      
-      const currentInnings = match?.current_innings || 1;
-
-      ballsData.forEach((ball: any) => {
-        // Calculate 1st innings runs for target
-        if (ball.innings === 1) {
-          firstInningsRuns += (ball.runs || 0) + (ball.extra_runs || 0);
-        }
-
-        // Only process stats for current innings
-        if (ball.innings === currentInnings) {
-          // Batter stats
-          if (ball.batter_id) {
-            if (!stats[ball.batter_id]) stats[ball.batter_id] = { name: ball.batter?.name, runs: 0, balls: 0 };
-            stats[ball.batter_id].runs += (ball.runs || 0);
-            if (!ball.extra_type || ball.extra_type === 'No Ball') {
-              stats[ball.batter_id].balls += 1;
-            }
-          }
-          
-          // Non-striker stats (ensure they exist in stats)
-          if (ball.non_striker_id && !stats[ball.non_striker_id]) {
-            stats[ball.non_striker_id] = { name: ball.non_striker?.name, runs: 0, balls: 0 };
-          }
-
-          // Bowler stats
-          if (ball.bowler_id) {
-            if (!stats[ball.bowler_id]) stats[ball.bowler_id] = { name: ball.bowler?.name, wickets: 0, runsConceded: 0, ballsBowled: 0 };
-            stats[ball.bowler_id].runsConceded += (ball.runs || 0) + (ball.extra_runs || 0);
-            if (!ball.extra_type || ball.extra_type === 'Bye' || ball.extra_type === 'Leg Bye') {
-              stats[ball.bowler_id].ballsBowled += 1;
-            }
-            if (ball.is_wicket && ball.wicket_type !== 'Run-out') {
-              stats[ball.bowler_id].wickets += 1;
-            }
-          }
-
-          totalRuns += (ball.runs || 0) + (ball.extra_runs || 0);
-          if (ball.is_wicket) totalWickets += 1;
-          if (!ball.extra_type || ball.extra_type === 'Bye' || ball.extra_type === 'Leg Bye') {
-            totalBalls += 1;
-          }
-        }
-      });
-
-      const currentInningsBalls = ballsData.filter(b => b.innings === currentInnings);
-      
-      // Parse current strikers from current_score if available
-      let strikerIdFromScore: string | null = null;
-      let nsIdFromScore: string | null = null;
-      
-      if (currentMatch.current_score) {
-        const strikerMatch = currentMatch.current_score.match(/\|S:([^|]+)/);
-        const nsMatch = currentMatch.current_score.match(/\|NS:([^|]+)/);
-        if (strikerMatch) strikerIdFromScore = strikerMatch[1];
-        if (nsMatch) nsIdFromScore = nsMatch[1];
+      if (error) {
+        console.error('Error fetching balls:', error);
+        setConsecutiveErrors(prev => prev + 1);
+        return;
       }
 
-      if (currentInningsBalls.length > 0) {
-        const lastBall = currentInningsBalls[currentInningsBalls.length - 1];
-        let currentStriker = lastBall.batter;
-        let currentNonStriker = lastBall.non_striker;
+      setConsecutiveErrors(0);
+      lastFetchTimeRef.current = Date.now();
+      
+      if (ballsData && ballsData.length > 0) {
+        const stats: Record<string, any> = {};
+        let totalRuns = 0;
+        let totalWickets = 0;
+        let totalBalls = 0;
+        let firstInningsRuns = 0;
+        
+        const currentInnings = match?.current_innings || 1;
 
-        // Rotate strike if runs were odd
-        if ((lastBall.runs || 0) % 2 !== 0) {
-          [currentStriker, currentNonStriker] = [currentNonStriker, currentStriker];
+        ballsData.forEach((ball: any) => {
+          // Calculate 1st innings runs for target
+          if (ball.innings === 1) {
+            firstInningsRuns += (ball.runs || 0) + (ball.extra_runs || 0);
+          }
+
+          // Only process stats for current innings
+          if (ball.innings === currentInnings) {
+            // Batter stats
+            if (ball.batter_id) {
+              if (!stats[ball.batter_id]) stats[ball.batter_id] = { name: ball.batter?.name, runs: 0, balls: 0 };
+              stats[ball.batter_id].runs += (ball.runs || 0);
+              if (!ball.extra_type || ball.extra_type === 'No Ball') {
+                stats[ball.batter_id].balls += 1;
+              }
+            }
+            
+            // Non-striker stats (ensure they exist in stats)
+            if (ball.non_striker_id && !stats[ball.non_striker_id]) {
+              stats[ball.non_striker_id] = { name: ball.non_striker?.name, runs: 0, balls: 0 };
+            }
+
+            // Bowler stats
+            if (ball.bowler_id) {
+              if (!stats[ball.bowler_id]) stats[ball.bowler_id] = { name: ball.bowler?.name, wickets: 0, runsConceded: 0, ballsBowled: 0 };
+              stats[ball.bowler_id].runsConceded += (ball.runs || 0) + (ball.extra_runs || 0);
+              if (!ball.extra_type || ball.extra_type === 'Bye' || ball.extra_type === 'Leg Bye') {
+                stats[ball.bowler_id].ballsBowled += 1;
+              }
+              if (ball.is_wicket && ball.wicket_type !== 'Run-out') {
+                stats[ball.bowler_id].wickets += 1;
+              }
+            }
+
+            totalRuns += (ball.runs || 0) + (ball.extra_runs || 0);
+            if (ball.is_wicket) totalWickets += 1;
+            if (!ball.extra_type || ball.extra_type === 'Bye' || ball.extra_type === 'Leg Bye') {
+              totalBalls += 1;
+            }
+          }
+        });
+
+        const currentInningsBalls = ballsData.filter(b => b.innings === currentInnings);
+        
+        // Parse current strikers from current_score if available
+        let strikerIdFromScore: string | null = null;
+        let nsIdFromScore: string | null = null;
+        
+        if (currentMatch.current_score) {
+          const strikerMatch = currentMatch.current_score.match(/\|S:([^|]+)/);
+          const nsMatch = currentMatch.current_score.match(/\|NS:([^|]+)/);
+          if (strikerMatch) strikerIdFromScore = strikerMatch[1];
+          if (nsMatch) nsIdFromScore = nsMatch[1];
         }
 
-        // Rotate strike if over ended (and it wasn't an extra that doesn't count as a ball)
-        const isExtraThatDoesntCount = lastBall.extra_type === 'Wide' || lastBall.extra_type === 'No Ball';
-        if (totalBalls % 6 === 0 && !isExtraThatDoesntCount) {
-          [currentStriker, currentNonStriker] = [currentNonStriker, currentStriker];
+        if (currentInningsBalls.length > 0) {
+          const lastBall = currentInningsBalls[currentInningsBalls.length - 1];
+          let currentStriker = lastBall.batter;
+          let currentNonStriker = lastBall.non_striker;
+
+          // Rotate strike if runs were odd
+          if ((lastBall.runs || 0) % 2 !== 0) {
+            [currentStriker, currentNonStriker] = [currentNonStriker, currentStriker];
+          }
+
+          // Rotate strike if over ended (and it wasn't an extra that doesn't count as a ball)
+          const isExtraThatDoesntCount = lastBall.extra_type === 'Wide' || lastBall.extra_type === 'No Ball';
+          if (totalBalls % 6 === 0 && !isExtraThatDoesntCount) {
+            [currentStriker, currentNonStriker] = [currentNonStriker, currentStriker];
+          }
+
+          // Override with IDs from score if they exist (helps with synchronization during wicket/selection)
+          if (strikerIdFromScore) {
+            const foundStriker = [...currentPlayersA, ...currentPlayersB].find(p => p.id === strikerIdFromScore);
+            if (foundStriker) currentStriker = foundStriker;
+          }
+          if (nsIdFromScore) {
+            const foundNS = [...currentPlayersA, ...currentPlayersB].find(p => p.id === nsIdFromScore);
+            if (foundNS) currentNonStriker = foundNS;
+          }
+
+          setCurrentBatter(currentStriker);
+          setNonStriker(currentNonStriker);
+          setCurrentBowler(lastBall.bowler);
+        } else if (currentPlayersA.length > 0 && currentPlayersB.length > 0) {
+          // No balls in current innings yet, determine initial players
+          const isTeamAWinner = currentMatch.toss_winner_id === currentMatch.team_a_id;
+          const teamABatsFirst = (isTeamAWinner && currentMatch.toss_decision === 'Batting') || (!isTeamAWinner && currentMatch.toss_decision === 'Bowling');
+          
+          const battingTeam = currentInnings === 1 
+            ? (teamABatsFirst ? currentPlayersA : currentPlayersB) 
+            : (teamABatsFirst ? currentPlayersB : currentPlayersA);
+          
+          const bowlingTeam = currentInnings === 1 
+            ? (teamABatsFirst ? currentPlayersB : currentPlayersA) 
+            : (teamABatsFirst ? currentPlayersA : currentPlayersB);
+
+          // Still check for IDs from score even if no balls yet
+          let s = battingTeam[0];
+          let ns = battingTeam[1];
+          if (strikerIdFromScore) {
+            const foundStriker = [...currentPlayersA, ...currentPlayersB].find(p => p.id === strikerIdFromScore);
+            if (foundStriker) s = foundStriker;
+          }
+          if (nsIdFromScore) {
+            const foundNS = [...currentPlayersA, ...currentPlayersB].find(p => p.id === nsIdFromScore);
+            if (foundNS) ns = foundNS;
+          }
+
+          setCurrentBatter(s);
+          setNonStriker(ns);
+          setCurrentBowler(bowlingTeam[0]);
         }
 
-        // Override with IDs from score if they exist (helps with synchronization during wicket/selection)
-        if (strikerIdFromScore) {
-          const foundStriker = [...currentPlayersA, ...currentPlayersB].find(p => p.id === strikerIdFromScore);
-          if (foundStriker) currentStriker = foundStriker;
-        }
-        if (nsIdFromScore) {
-          const foundNS = [...currentPlayersA, ...currentPlayersB].find(p => p.id === nsIdFromScore);
-          if (foundNS) currentNonStriker = foundNS;
+        setRuns(totalRuns);
+        setWickets(totalWickets);
+        setOvers(Math.floor(totalBalls / 6));
+        setBalls(totalBalls % 6);
+        setPlayerStats(stats);
+        
+        if (currentInnings === 2) {
+          setTarget(firstInningsRuns + 1);
+        } else {
+          setTarget(null);
         }
 
-        setCurrentBatter(currentStriker);
-        setNonStriker(currentNonStriker);
-        setCurrentBowler(lastBall.bowler);
-      } else if (currentPlayersA.length > 0 && currentPlayersB.length > 0) {
-        // No balls in current innings yet, determine initial players
+        // Calculate current over balls
+        let currentOverNum = currentMatch.current_score ? parseInt(currentMatch.current_score.match(/\((\d+)\./)?.[1] || '0') : Math.floor(totalBalls / 6);
+        let currentOverBallsData = currentInningsBalls.filter(b => b.over_number === currentOverNum);
+        
+        // If current over has no balls, show the previous over's balls
+        if (currentOverBallsData.length === 0 && currentOverNum > 0) {
+          const prevOverBalls = currentInningsBalls.filter(b => b.over_number === currentOverNum - 1);
+          if (prevOverBalls.length > 0) {
+            currentOverNum = currentOverNum - 1;
+            currentOverBallsData = prevOverBalls;
+          }
+        }
+
+        setCurrentOverBalls(currentOverBallsData.map(b => {
+          if (b.is_wicket) return 'W';
+          if (b.extra_type === 'Wide') return 'WD';
+          if (b.extra_type === 'No Ball') return 'NB';
+          if (b.extra_type) return b.extra_type.substring(0, 1).toUpperCase();
+          return b.runs.toString();
+        }));
+      } else if (currentMatch && currentPlayersA.length > 0 && currentPlayersB.length > 0) {
+        // Set initial players if no balls found (start of match)
         const isTeamAWinner = currentMatch.toss_winner_id === currentMatch.team_a_id;
         const teamABatsFirst = (isTeamAWinner && currentMatch.toss_decision === 'Batting') || (!isTeamAWinner && currentMatch.toss_decision === 'Bowling');
+        const currentInnings = currentMatch.current_innings || 1;
         
         const battingTeam = currentInnings === 1 
           ? (teamABatsFirst ? currentPlayersA : currentPlayersB) 
@@ -151,89 +222,31 @@ export const Overlay: React.FC = () => {
           ? (teamABatsFirst ? currentPlayersB : currentPlayersA) 
           : (teamABatsFirst ? currentPlayersA : currentPlayersB);
 
-        // Still check for IDs from score even if no balls yet
-        let s = battingTeam[0];
-        let ns = battingTeam[1];
-        if (strikerIdFromScore) {
-          const foundStriker = [...currentPlayersA, ...currentPlayersB].find(p => p.id === strikerIdFromScore);
-          if (foundStriker) s = foundStriker;
-        }
-        if (nsIdFromScore) {
-          const foundNS = [...currentPlayersA, ...currentPlayersB].find(p => p.id === nsIdFromScore);
-          if (foundNS) ns = foundNS;
-        }
-
-        setCurrentBatter(s);
-        setNonStriker(ns);
+        setCurrentBatter(battingTeam[0]);
+        setNonStriker(battingTeam[1]);
         setCurrentBowler(bowlingTeam[0]);
-      }
-
-      setRuns(totalRuns);
-      setWickets(totalWickets);
-      setOvers(Math.floor(totalBalls / 6));
-      setBalls(totalBalls % 6);
-      setPlayerStats(stats);
-      
-      if (currentInnings === 2) {
-        setTarget(firstInningsRuns + 1);
+        
+        setRuns(0);
+        setWickets(0);
+        setOvers(0);
+        setBalls(0);
+        setPlayerStats({});
+        setCurrentOverBalls([]);
       } else {
-        setTarget(null);
+        // Reset stats if no balls found and no player data yet
+        setRuns(0);
+        setWickets(0);
+        setOvers(0);
+        setBalls(0);
+        setPlayerStats({});
+        setCurrentOverBalls([]);
       }
-
-      // Calculate current over balls
-      let currentOverNum = currentMatch.current_score ? parseInt(currentMatch.current_score.match(/\((\d+)\./)?.[1] || '0') : Math.floor(totalBalls / 6);
-      let currentOverBallsData = currentInningsBalls.filter(b => b.over_number === currentOverNum);
-      
-      // If current over has no balls, show the previous over's balls
-      if (currentOverBallsData.length === 0 && currentOverNum > 0) {
-        const prevOverBalls = currentInningsBalls.filter(b => b.over_number === currentOverNum - 1);
-        if (prevOverBalls.length > 0) {
-          currentOverNum = currentOverNum - 1;
-          currentOverBallsData = prevOverBalls;
-        }
-      }
-
-      setCurrentOverBalls(currentOverBallsData.map(b => {
-        if (b.is_wicket) return 'W';
-        if (b.extra_type === 'Wide') return 'WD';
-        if (b.extra_type === 'No Ball') return 'NB';
-        if (b.extra_type) return b.extra_type.substring(0, 1).toUpperCase();
-        return b.runs.toString();
-      }));
-    } else if (currentMatch && currentPlayersA.length > 0 && currentPlayersB.length > 0) {
-      // Set initial players if no balls found (start of match)
-      const isTeamAWinner = currentMatch.toss_winner_id === currentMatch.team_a_id;
-      const teamABatsFirst = (isTeamAWinner && currentMatch.toss_decision === 'Batting') || (!isTeamAWinner && currentMatch.toss_decision === 'Bowling');
-      const currentInnings = currentMatch.current_innings || 1;
-      
-      const battingTeam = currentInnings === 1 
-        ? (teamABatsFirst ? currentPlayersA : currentPlayersB) 
-        : (teamABatsFirst ? currentPlayersB : currentPlayersA);
-      
-      const bowlingTeam = currentInnings === 1 
-        ? (teamABatsFirst ? currentPlayersB : currentPlayersA) 
-        : (teamABatsFirst ? currentPlayersA : currentPlayersB);
-
-      setCurrentBatter(battingTeam[0]);
-      setNonStriker(battingTeam[1]);
-      setCurrentBowler(bowlingTeam[0]);
-      
-      setRuns(0);
-      setWickets(0);
-      setOvers(0);
-      setBalls(0);
-      setPlayerStats({});
-      setCurrentOverBalls([]);
-    } else {
-      // Reset stats if no balls found and no player data yet
-      setRuns(0);
-      setWickets(0);
-      setOvers(0);
-      setBalls(0);
-      setPlayerStats({});
-      setCurrentOverBalls([]);
+    } catch (err) {
+      console.error('Unexpected error in fetchBallsAndCalculateStats:', err);
+      setConsecutiveErrors(prev => prev + 1);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [matchId, match, teamAPlayers, teamBPlayers]);
 
   const fetchInitialData = useCallback(async () => {
@@ -259,18 +272,24 @@ export const Overlay: React.FC = () => {
 
       if (matchError) {
         console.error('Error fetching match:', matchError);
-        setError(`Match not found: ${matchError.message}`);
+        // Only set hard error if we don't have existing data
+        if (!match) {
+          setError(`Match not found: ${matchError.message}`);
+        }
+        setConsecutiveErrors(prev => prev + 1);
         setLoading(false);
         return;
       }
 
       if (!matchData) {
-        setError('Match not found');
+        if (!match) setError('Match not found');
         setLoading(false);
         return;
       }
 
       setMatch(matchData);
+      setConsecutiveErrors(0);
+      setError(null);
       
       // Fetch players for both teams
       const { data: pA } = await supabase.from('players').select('*').eq('team_id', matchData.team_a_id);
@@ -282,14 +301,13 @@ export const Overlay: React.FC = () => {
       await fetchBallsAndCalculateStats(matchData, pA || [], pB || []);
     } catch (err: any) {
       console.error('Unexpected error:', err);
-      setError(`An unexpected error occurred: ${err.message}`);
+      if (!match) setError(`An unexpected error occurred: ${err.message}`);
+      setConsecutiveErrors(prev => prev + 1);
       setLoading(false);
     }
   }, [matchId, fetchBallsAndCalculateStats]);
 
   useEffect(() => {
-    let ballsSubscription: any;
-    let matchSubscription: any;
     let pollingInterval: any;
 
     const setupSubscriptions = () => {
@@ -301,8 +319,18 @@ export const Overlay: React.FC = () => {
         reconnectTimeoutRef.current = null;
       }
 
+      // Cleanup existing subscriptions before recreating
+      if (ballsSubRef.current) {
+        supabase.removeChannel(ballsSubRef.current);
+        ballsSubRef.current = null;
+      }
+      if (matchSubRef.current) {
+        supabase.removeChannel(matchSubRef.current);
+        matchSubRef.current = null;
+      }
+
       // Real-time updates for balls
-      ballsSubscription = supabase
+      ballsSubRef.current = supabase
         .channel(`balls_${matchId}`)
         .on('postgres_changes', { 
           event: '*', 
@@ -317,20 +345,22 @@ export const Overlay: React.FC = () => {
           console.log(`Balls subscription status: ${status}`);
           if (status === 'SUBSCRIBED') {
             setIsRealtimeConnected(true);
-          } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+            setConsecutiveErrors(0);
+          } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
             setIsRealtimeConnected(false);
-            // Try to reconnect after 5 seconds if not already scheduled
+            console.log(`Subscription issue (${status}), attempting reconnect...`);
+            // Try to reconnect after 3 seconds
             if (!reconnectTimeoutRef.current) {
               reconnectTimeoutRef.current = setTimeout(() => {
                 reconnectTimeoutRef.current = null;
                 setupSubscriptions();
-              }, 5000);
+              }, 3000);
             }
           }
         });
 
       // Real-time updates for match
-      matchSubscription = supabase
+      matchSubRef.current = supabase
         .channel(`match_${matchId}`)
         .on('postgres_changes', { 
           event: 'UPDATE', 
@@ -349,20 +379,24 @@ export const Overlay: React.FC = () => {
     fetchInitialData();
     setupSubscriptions();
 
-    // Polling backup (every 5 seconds)
+    // Polling backup (every 3 seconds for faster sync)
     pollingInterval = setInterval(() => {
       fetchBallsAndCalculateStats();
-    }, 5000);
+      // Occasionally refresh match data too
+      if (Math.random() > 0.8) {
+        fetchInitialData();
+      }
+    }, 3000);
 
     return () => {
-      if (ballsSubscription) supabase.removeChannel(ballsSubscription);
-      if (matchSubscription) supabase.removeChannel(matchSubscription);
+      if (ballsSubRef.current) supabase.removeChannel(ballsSubRef.current);
+      if (matchSubRef.current) supabase.removeChannel(matchSubRef.current);
       if (pollingInterval) clearInterval(pollingInterval);
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
     };
   }, [matchId, fetchInitialData, fetchBallsAndCalculateStats]);
 
-  if (loading) {
+  if (loading && !match) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm">
         <div className="bg-white p-6 rounded-2xl shadow-xl flex flex-col items-center gap-4">
@@ -373,7 +407,7 @@ export const Overlay: React.FC = () => {
     );
   }
 
-  if (error || !match) {
+  if ((error || !match) && consecutiveErrors > 5) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-black/40 backdrop-blur-md">
         <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-md w-full flex flex-col items-center text-center gap-6">
@@ -381,11 +415,15 @@ export const Overlay: React.FC = () => {
             <AlertCircle size={32} />
           </div>
           <div>
-            <h2 className="text-2xl font-black text-slate-900 mb-2">Overlay Error</h2>
-            <p className="text-slate-500 font-medium">{error || 'Match data could not be loaded'}</p>
+            <h2 className="text-2xl font-black text-slate-900 mb-2">Overlay Connection Lost</h2>
+            <p className="text-slate-500 font-medium">{error || 'Unable to reach the scoring server. Please check your internet connection.'}</p>
           </div>
           <button 
-            onClick={() => window.location.reload()}
+            onClick={() => {
+              setConsecutiveErrors(0);
+              setError(null);
+              fetchInitialData();
+            }}
             className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors"
           >
             Retry Connection

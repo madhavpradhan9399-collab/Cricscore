@@ -18,6 +18,13 @@ export const supabase = createClient(
     global: {
       headers: { 'x-application-name': 'cricoverlay' },
       fetch: (url, options) => window.fetch(url, options),
+    },
+    realtime: {
+      params: {
+        eventsPerSecond: 10,
+      },
+      timeout: 20000, // 20 seconds timeout instead of default 30
+      heartbeatIntervalMs: 2500, // Heartbeat every 2.5 seconds
     }
   }
 );
