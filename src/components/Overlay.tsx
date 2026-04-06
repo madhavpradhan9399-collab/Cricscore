@@ -189,10 +189,23 @@ export const Overlay: React.FC = () => {
         }
 
         // Calculate current over balls
-        let currentOverNum = currentMatch.current_score ? parseInt(currentMatch.current_score.match(/\((\d+)\./)?.[1] || '0') : Math.floor(totalBalls / 6);
+        const lastBall = currentInningsBalls[currentInningsBalls.length - 1];
+        let currentOverNum = lastBall ? lastBall.over_number : 0;
+        
+        // If current_score points to an over that actually has balls, use it
+        if (currentMatch.current_score) {
+          const matchResult = currentMatch.current_score.match(/\((\d+)\./);
+          if (matchResult) {
+            const scoreOverNum = parseInt(matchResult[1]);
+            if (currentInningsBalls.some(b => b.over_number === scoreOverNum)) {
+              currentOverNum = scoreOverNum;
+            }
+          }
+        }
+
         let currentOverBallsData = currentInningsBalls.filter(b => b.over_number === currentOverNum);
         
-        // If current over has no balls, show the previous over's balls
+        // Fallback to previous over if current is empty
         if (currentOverBallsData.length === 0 && currentOverNum > 0) {
           const prevOverBalls = currentInningsBalls.filter(b => b.over_number === currentOverNum - 1);
           if (prevOverBalls.length > 0) {
