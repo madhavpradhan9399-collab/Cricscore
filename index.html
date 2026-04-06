@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Google AI Studio App</title>
+    <script>
+      // Global fetch wrapper with robust retry logic for network errors
+      // This helps handle transient network issues and proxy timeouts in sandboxed environments.
+      if (typeof window !== 'undefined') {
+        try {
+          const originalFetch = window.fetch;
+          
+          const wrappedFetch = async (...args) => {
+            let lastError;
+            const maxRetries = 3;
+            
+            for (let i = 0; i < maxRetries; i++) {
+              try {
+                // Check if we are online before even trying
+                if (!navigator.onLine) {
+                  throw new TypeError('Network error: Browser is offline');
+                }
+                
+                // Get the URL string safely
+                let urlString = '';
+                if (typeof args[0] === 'string') {
+                  urlString = args[0];
+                } else if (args[0] instanceof URL) {
+                  urlString = args[0].href;
+                } else if (args[0] && typeof args[0] === 'object' && 'url' in args[0]) {
+                  urlString = args[0].url;
+                }
+
+                // Detect placeholder URLs
+                if (urlString.includes('placeholder.supabase.co')) {
+                  const configMsg = 'Supabase is not configured. Please set your actual VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in the Settings menu.';
+                  console.error('[Fetch] Configuration error:', configMsg);
+                  throw new Error(configMsg);
+                }
+
+                // Log the request for debugging (without sensitive parts)
+                try {
+                  const urlObj = new URL(urlString, window.location.origin);
+                  console.log(`[Fetch] ${urlObj.origin}${urlObj.pathname}`);
+                } catch (urlErr) {
+                  console.log(`[Fetch] ${urlString.substring(0, 50)}...`);
+                }
+                
+                const response = await originalFetch(...args);
+                
+                // If it's a 5xx error, we might want to retry as well
+                if (response.status >= 500 && response.status <= 599) {
+                  console.warn(`[Fetch] Server error ${response.status} for ${urlString.substring(0, 50)}, retrying (${i + 1}/${maxRetries})...`);
+                  await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+                  continue;
+                }
+                
+                return response;
+              } catch (e) {
+                lastError = e;
+                
+                // Determine if this is a retryable error
+                const isAbortError = e.name === 'AbortError';
+                const isConfigError = e.message?.includes('Supabase is not configured');
+                const isNetworkError = !isConfigError && (
+                                     e instanceof TypeError || 
+                                     e.message === 'Failed to fetch' || 
+                                     e.message?.includes('Failed to fetch') ||
+                                     e.message?.includes('NetworkError') ||
+                                     e.message?.includes('Network error') ||
+                                     e.message?.includes('Load failed'));
+                
+                if (isAbortError || isConfigError) {
+                  throw e;
+                }
+                
+                if (isNetworkError && i < maxRetries - 1) {
+                  console.warn(`[Fetch] Network error detected for ${args[0]}, retrying (${i + 1}/${maxRetries}):`, e.message);
+                  // Exponential backoff: 1s, 2s, 3s
+                  await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+                  continue;
+                }
+                
+                let urlDisplay = 'the server';
+                try {
+                  if (typeof args[0] === 'string') {
+                    const urlObj = new URL(args[0], window.location.origin);
+                    urlDisplay = urlObj.hostname;
+                  }
+                } catch (urlErr) {}
+
+                const finalMessage = isNetworkError 
+                  ? `Network error: Failed to reach ${urlDisplay} after ${maxRetries} attempts. This usually means the domain is blocked, the URL is incorrect, or the server is down.`
+                  : e.message;
+                
+                console.error(`[Fetch] Final failure:`, finalMessage);
+                throw new Error(finalMessage);
+              }
+            }
+            throw lastError;
+          };
+
+          Object.defineProperty(window, 'fetch', {
+            configurable: true,
+            enumerable: true,
+            get: () => wrappedFetch,
+            set: () => { /* ignore attempts to overwrite fetch */ }
+          });
+        } catch (e) {
+          console.error('Failed to wrap fetch:', e);
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
