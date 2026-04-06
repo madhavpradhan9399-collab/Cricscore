@@ -396,38 +396,12 @@ export const Overlay: React.FC = () => {
     };
   }, [matchId, fetchInitialData, fetchBallsAndCalculateStats]);
 
-  if (loading && !match) {
+  if (!match) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm">
         <div className="bg-white p-6 rounded-2xl shadow-xl flex flex-col items-center gap-4">
           <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-          <p className="font-bold text-slate-800">Loading Scoreboard Overlay...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if ((error || !match) && consecutiveErrors > 5) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center bg-black/40 backdrop-blur-md">
-        <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-md w-full flex flex-col items-center text-center gap-6">
-          <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center">
-            <AlertCircle size={32} />
-          </div>
-          <div>
-            <h2 className="text-2xl font-black text-slate-900 mb-2">Overlay Connection Lost</h2>
-            <p className="text-slate-500 font-medium">{error || 'Unable to reach the scoring server. Please check your internet connection.'}</p>
-          </div>
-          <button 
-            onClick={() => {
-              setConsecutiveErrors(0);
-              setError(null);
-              fetchInitialData();
-            }}
-            className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors"
-          >
-            Retry Connection
-          </button>
+          <p className="font-bold text-slate-800">Connecting to Scoreboard...</p>
         </div>
       </div>
     );
