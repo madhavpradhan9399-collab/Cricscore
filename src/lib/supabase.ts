@@ -14,6 +14,8 @@ export const supabase = createClient(
     auth: {
       persistSession: true,
       autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storage: window.localStorage,
     },
     global: {
       headers: { 'x-application-name': 'cricoverlay' },

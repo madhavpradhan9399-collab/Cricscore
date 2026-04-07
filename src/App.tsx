@@ -188,10 +188,18 @@ function MainApp() {
   useEffect(() => {
     const initAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        setUser(session?.user ?? null);
+        // Try to get the session from local storage first
+        const { data: { session }, error } = await supabase.auth.getSession();
         
+        if (error) {
+          console.error('Error getting session:', error);
+          // If there's an error, we still want to stop loading to show the login page
+          setLoading(false);
+          return;
+        }
+
         if (session?.user) {
+          setUser(session.user);
           fetchTournaments(3, session.user);
           fetchMatches(3, session.user);
           fetchTeams(3, session.user);
@@ -199,20 +207,24 @@ function MainApp() {
       } catch (err) {
         console.error('Auth initialization error:', err);
       } finally {
-        setLoading(false);
+        // Small delay to ensure state has propagated
+        setTimeout(() => setLoading(false), 500);
       }
     };
 
     initAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event);
       const currentUser = session?.user ?? null;
       setUser(currentUser);
       
       if (currentUser) {
-        fetchTournaments(3, currentUser);
-        fetchMatches(3, currentUser);
-        fetchTeams(3, currentUser);
+        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+          fetchTournaments(3, currentUser);
+          fetchMatches(3, currentUser);
+          fetchTeams(3, currentUser);
+        }
       } else {
         setTournaments([]);
         setMatches([]);
