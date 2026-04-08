@@ -14,7 +14,13 @@ import {
   Plus,
   Search,
   LayoutDashboard,
+  LayoutGrid,
+  Home,
+  Shield,
+  CalendarDays,
+  Headset,
   Play,
+  Zap,
   AlertCircle,
   CheckCircle,
   Info,
@@ -24,7 +30,9 @@ import {
   WifiOff,
   Upload,
   Image as ImageIcon,
-  Loader2
+  Loader2,
+  Mail,
+  Instagram
 } from 'lucide-react';
 import { supabase } from './lib/supabase';
 import { cn } from './lib/utils';
@@ -33,22 +41,32 @@ import { Overlay } from './components/Overlay';
 
 // --- Components ---
 
-const SidebarItem = ({ icon: Icon, label, active, onClick }: { icon: any, label: string, active?: boolean, onClick: () => void }) => (
+const SidebarItem = ({ icon: Icon, label, active, onClick, collapsed }: { icon: any, label: string, active?: boolean, onClick: () => void, collapsed?: boolean }) => (
   <button
     onClick={onClick}
     className={cn(
-      "flex items-center w-full gap-3 px-4 py-3 rounded-xl transition-all duration-200 group",
+      "flex items-center w-full rounded-xl transition-all duration-200 group relative",
+      collapsed ? "justify-center p-3" : "justify-start gap-3 px-4 py-3",
       active 
-        ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200/50" 
-        : "text-slate-500 hover:bg-indigo-50 hover:text-indigo-600"
+        ? "bg-emerald-600 text-white shadow-lg shadow-emerald-200/50" 
+        : "text-slate-500 hover:bg-emerald-50 hover:text-emerald-600"
     )}
+    title={collapsed ? label : ""}
   >
-    <Icon size={20} className={cn(active ? "text-white" : "text-slate-400 group-hover:text-indigo-600")} />
-    <span className="font-medium">{label}</span>
-    {active && (
+    <div className={cn("flex items-center justify-center shrink-0", collapsed ? "w-6 h-6" : "w-5 h-5")}>
+      <Icon size={collapsed ? 24 : 20} className={cn(active ? "text-white" : "text-slate-400 group-hover:text-emerald-600")} />
+    </div>
+    {!collapsed && <span className="font-medium whitespace-nowrap">{label}</span>}
+    {active && !collapsed && (
       <motion.div 
         layoutId="active-pill"
         className="ml-auto w-1.5 h-1.5 rounded-full bg-white"
+      />
+    )}
+    {active && collapsed && (
+      <motion.div 
+        layoutId="active-pill-dot"
+        className="absolute right-1 top-1 w-2 h-2 rounded-full bg-white border-2 border-emerald-600"
       />
     )}
   </button>
@@ -113,6 +131,11 @@ function MainApp() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [selectedTeamForPlayers, setSelectedTeamForPlayers] = useState<any | null>(null);
+
+  const handleTabClick = (tab: string) => {
+    setActiveTab(tab);
+    setIsSidebarOpen(false);
+  };
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -182,7 +205,7 @@ function MainApp() {
 
   useEffect(() => {
     if (statusMessage) {
-      const timer = setTimeout(() => setStatusMessage(null), 5000);
+      const timer = setTimeout(() => setStatusMessage(null), 3000);
       return () => clearTimeout(timer);
     }
   }, [statusMessage]);
@@ -489,7 +512,7 @@ function MainApp() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    setActiveTab('dashboard');
+    handleTabClick('dashboard');
   };
 
   const handleCreateTournament = async (e: React.FormEvent) => {
@@ -634,7 +657,7 @@ function MainApp() {
           </p>
           <button 
             onClick={() => window.location.reload()}
-            className="w-full py-4 bg-indigo-600 text-white font-black rounded-2xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
+            className="w-full py-4 bg-emerald-600 text-white font-black rounded-2xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200"
           >
             RETRY CONNECTION
           </button>
@@ -649,7 +672,7 @@ function MainApp() {
         <motion.div 
           animate={{ rotate: 360 }}
           transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full"
+          className="w-10 h-10 border-4 border-emerald-600 border-t-transparent rounded-full"
         />
       </div>
     );
@@ -660,7 +683,7 @@ function MainApp() {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <Card className="w-full max-w-md p-8">
-          <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
+          <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
             <Trophy size={32} />
           </div>
           <h1 className="text-2xl font-bold text-slate-900 text-center mb-2">CricOverlay</h1>
@@ -676,7 +699,7 @@ function MainApp() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
                 placeholder="you@example.com"
               />
             </div>
@@ -688,7 +711,7 @@ function MainApp() {
                     <button 
                       type="button"
                       onClick={() => setIsForgotPassword(true)}
-                      className="text-xs text-indigo-600 hover:underline font-medium"
+                      className="text-xs text-emerald-600 hover:underline font-medium"
                     >
                       Forgot Password?
                     </button>
@@ -699,7 +722,7 @@ function MainApp() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                  className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
                   placeholder="••••••••"
                 />
               </div>
@@ -712,7 +735,7 @@ function MainApp() {
             <button 
               type="submit"
               disabled={loading}
-              className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full bg-emerald-600 text-white py-3 rounded-xl font-semibold hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {loading ? 'Processing...' : (isForgotPassword ? 'Send Reset Link' : (isSignUp ? 'Sign Up' : 'Sign In'))}
             </button>
@@ -722,14 +745,14 @@ function MainApp() {
             {isForgotPassword ? (
               <button 
                 onClick={() => setIsForgotPassword(false)}
-                className="text-sm text-indigo-600 font-medium hover:underline block w-full"
+                className="text-sm text-emerald-600 font-medium hover:underline block w-full"
               >
                 Back to Sign In
               </button>
             ) : (
               <button 
                 onClick={() => setIsSignUp(!isSignUp)}
-                className="text-sm text-indigo-600 font-medium hover:underline block w-full"
+                className="text-sm text-emerald-600 font-medium hover:underline block w-full"
               >
                 {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
               </button>
@@ -745,74 +768,127 @@ function MainApp() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-screen bg-slate-50 flex overflow-x-hidden">
+      {/* Sidebar Backdrop (Mobile Only) */}
+      <AnimatePresence>
+        {isSidebarOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsSidebarOpen(false)}
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 md:hidden"
+          />
+        )}
+      </AnimatePresence>
+
       {/* Sidebar */}
       <motion.aside 
         initial={false}
-        animate={{ width: isSidebarOpen ? 280 : 80 }}
-        className="bg-white border-r border-slate-100 flex flex-col sticky top-0 h-screen z-20"
+        animate={{ 
+          width: isSidebarOpen ? 280 : (window.innerWidth < 768 ? 0 : 80),
+          x: isSidebarOpen ? 0 : (window.innerWidth < 768 ? -280 : 0)
+        }}
+        className={cn(
+          "bg-white border-r border-slate-100 flex flex-col h-screen z-50 shadow-xl transition-all duration-300",
+          "fixed md:sticky top-0"
+        )}
       >
-        <div className="p-6 flex items-center gap-3">
-          <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shrink-0 shadow-lg shadow-indigo-200">
-            <Trophy size={24} />
+        <div className={cn("p-6 flex items-center gap-3", !isSidebarOpen && "justify-center")}>
+          <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl flex items-center justify-center text-white shrink-0 shadow-lg shadow-emerald-200/50 rotate-3">
+            <Zap size={24} fill="currentColor" />
           </div>
           {isSidebarOpen && (
             <motion.span 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="font-bold text-xl text-slate-900 tracking-tight"
+              className="font-black text-xl text-slate-900 tracking-tighter uppercase italic"
             >
-              CricOverlay
+              Ground<span className="text-emerald-600">Score</span>
             </motion.span>
           )}
         </div>
 
         <nav className="flex-1 px-4 space-y-2 mt-4">
           <SidebarItem 
-            icon={LayoutDashboard} 
-            label={isSidebarOpen ? "Dashboard" : ""} 
+            icon={Home} 
+            label="Dashboard" 
             active={activeTab === 'dashboard'} 
-            onClick={() => setActiveTab('dashboard')} 
+            onClick={() => handleTabClick('dashboard')} 
+            collapsed={!isSidebarOpen}
           />
           <SidebarItem 
             icon={Trophy} 
-            label={isSidebarOpen ? "Tournaments" : ""} 
+            label="Tournaments" 
             active={activeTab === 'tournaments'} 
-            onClick={() => setActiveTab('tournaments')} 
+            onClick={() => handleTabClick('tournaments')} 
+            collapsed={!isSidebarOpen}
           />
           <SidebarItem 
-            icon={Users} 
-            label={isSidebarOpen ? "Teams" : ""} 
+            icon={Shield} 
+            label="Teams" 
             active={activeTab === 'teams'} 
-            onClick={() => setActiveTab('teams')} 
+            onClick={() => handleTabClick('teams')} 
+            collapsed={!isSidebarOpen}
           />
           <SidebarItem 
-            icon={Calendar} 
-            label={isSidebarOpen ? "Fixtures" : ""} 
+            icon={CalendarDays} 
+            label="Fixtures" 
             active={activeTab === 'fixtures'} 
-            onClick={() => setActiveTab('fixtures')} 
+            onClick={() => handleTabClick('fixtures')} 
+            collapsed={!isSidebarOpen}
+          />
+          <SidebarItem 
+            icon={Headset} 
+            label="Contact Us" 
+            active={activeTab === 'contact'} 
+            onClick={() => handleTabClick('contact')} 
+            collapsed={!isSidebarOpen}
           />
         </nav>
 
         <div className="p-4 border-t border-slate-100">
           <SidebarItem 
             icon={LogOut} 
-            label={isSidebarOpen ? "Sign Out" : ""} 
+            label="Sign Out" 
             onClick={handleLogout} 
+            collapsed={!isSidebarOpen}
           />
         </div>
       </motion.aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0">
+      <main className="flex-1 flex flex-col min-w-0 bg-score-pattern">
         {/* Header */}
-        <header className="h-20 bg-white border-b border-slate-100 flex items-center justify-between px-8 sticky top-0 z-10">
-          <button 
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-2 hover:bg-slate-50 rounded-lg text-slate-500"
-          >
-            {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
+        <header className="h-20 bg-white border-b border-slate-100 flex items-center justify-between px-4 md:px-8 sticky top-0 z-30">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="p-2 hover:bg-slate-50 rounded-lg text-slate-500"
+            >
+              {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+            
+            {/* Mobile Logo */}
+            <div className="flex items-center gap-2 md:hidden">
+              <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-lg flex items-center justify-center text-white shadow-lg shadow-emerald-200/50 rotate-3">
+                <Zap size={18} fill="currentColor" />
+              </div>
+              <span className="font-black text-lg text-slate-900 tracking-tighter uppercase italic">
+                Ground<span className="text-emerald-600">Score</span>
+              </span>
+            </div>
+          </div>
+
+          {/* Centered Website Name (Desktop) */}
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden md:flex items-center gap-2 pointer-events-none">
+            <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-lg flex items-center justify-center text-white shadow-lg shadow-emerald-200/50 rotate-3">
+              <Zap size={18} fill="currentColor" />
+            </div>
+            <span className="font-black text-xl text-slate-900 tracking-tighter uppercase italic">
+              Ground<span className="text-emerald-600">Score</span>
+            </span>
+          </div>
 
           <div className="flex items-center gap-4">
             <div className="hidden md:flex flex-col items-end">
@@ -904,7 +980,7 @@ function MainApp() {
         )}
 
         {/* Content Area */}
-        <div className="p-8 max-w-7xl mx-auto w-full">
+        <div className="p-4 md:p-8 max-w-7xl mx-auto w-full">
           <AnimatePresence mode="wait">
             {activeTab === 'dashboard' && (
               <motion.div
@@ -914,14 +990,14 @@ function MainApp() {
                 exit={{ opacity: 0, y: -20 }}
                 className="space-y-8"
               >
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
-                    <h2 className="text-3xl font-bold text-slate-900">Welcome back!</h2>
-                    <p className="text-slate-500 mt-1">Here's what's happening in your tournaments.</p>
+                    <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Welcome back!</h2>
+                    <p className="text-slate-500 mt-1 font-medium">Here's what's happening in your tournaments.</p>
                   </div>
                   <button 
                     onClick={() => setShowNewTournamentModal(true)}
-                    className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-200"
+                    className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-200 uppercase tracking-wider text-sm w-full sm:w-auto"
                   >
                     <Plus size={20} />
                     New Tournament
@@ -932,16 +1008,16 @@ function MainApp() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {[
                     { label: 'Active Matches', value: matches.length.toString(), color: 'bg-emerald-500' },
-                    { label: 'Total Tournaments', value: tournaments.length.toString(), color: 'bg-indigo-500' },
+                    { label: 'Total Tournaments', value: tournaments.length.toString(), color: 'bg-emerald-600' },
                     { label: 'Upcoming Fixtures', value: '0', color: 'bg-amber-500' },
                   ].map((stat, i) => (
-                    <Card key={i} className="p-6">
+                    <Card key={i} className="p-6 border-none shadow-lg shadow-slate-200/50">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">{stat.label}</p>
-                          <p className="text-4xl font-bold text-slate-900 mt-2">{stat.value}</p>
+                          <p className="text-xs font-black text-slate-400 uppercase tracking-widest">{stat.label}</p>
+                          <p className="text-4xl font-black text-slate-900 mt-2">{stat.value}</p>
                         </div>
-                        <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center text-white", stat.color)}>
+                        <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg", stat.color)}>
                           <LayoutDashboard size={24} />
                         </div>
                       </div>
@@ -953,28 +1029,28 @@ function MainApp() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   <Card>
                     <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-                      <h3 className="font-bold text-slate-900">Live Matches</h3>
-                      <button className="text-indigo-600 text-sm font-semibold hover:underline">View All</button>
+                      <h3 className="font-black text-slate-900 uppercase tracking-tight">Live Matches</h3>
+                      <button className="text-emerald-600 text-sm font-bold hover:underline uppercase tracking-wider">View All</button>
                     </div>
                     <div className="divide-y divide-slate-50">
                       {matches.length > 0 ? matches.map((match, i) => (
                         <div 
                           key={i} 
                           onClick={() => {
-                            setActiveTab(`scoring-${match.id}`);
+                            handleTabClick(`scoring-${match.id}`);
                           }}
                           className="p-6 flex items-center justify-between hover:bg-slate-50 transition-colors cursor-pointer group"
                         >
-                          <div className="flex items-center gap-6">
-                            <div className="text-center">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
+                            <div className="text-center sm:text-left">
                               <p className="font-bold text-slate-900">{match.team_a?.name || 'Team A'}</p>
                               <p className="text-xs text-slate-400 mt-1">vs</p>
                               <p className="font-bold text-slate-900">{match.team_b?.name || 'Team B'}</p>
                             </div>
-                            <div className="h-10 w-px bg-slate-100" />
-                            <div>
-                              <p className="text-xl font-black text-indigo-600">{match.score || '0/0 (0.0)'}</p>
-                              <div className="flex items-center gap-1.5 mt-1">
+                            <div className="hidden sm:block h-10 w-px bg-slate-100" />
+                            <div className="text-center sm:text-left">
+                              <p className="text-xl font-black text-emerald-600">{match.score || '0/0 (0.0)'}</p>
+                              <div className="flex items-center justify-center sm:justify-start gap-1.5 mt-1">
                                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                                 <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">{match.status}</span>
                               </div>
@@ -982,7 +1058,7 @@ function MainApp() {
                           </div>
                           <div className="flex items-center gap-3">
                             <span className="text-xs font-bold text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">Score Now</span>
-                            <ChevronRight size={20} className="text-slate-300 group-hover:text-indigo-600 transition-colors" />
+                            <ChevronRight size={20} className="text-slate-300 group-hover:text-emerald-600 transition-colors" />
                           </div>
                         </div>
                       )) : (
@@ -996,8 +1072,8 @@ function MainApp() {
 
                   <Card>
                     <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-                      <h3 className="font-bold text-slate-900">Upcoming Fixtures</h3>
-                      <button className="text-indigo-600 text-sm font-semibold hover:underline">View Schedule</button>
+                      <h3 className="font-black text-slate-900 uppercase tracking-tight">Upcoming Fixtures</h3>
+                      <button className="text-emerald-600 text-sm font-bold hover:underline uppercase tracking-wider">View Schedule</button>
                     </div>
                     <div className="divide-y divide-slate-50">
                       {[
@@ -1014,7 +1090,7 @@ function MainApp() {
                               <p className="text-sm text-slate-500 mt-0.5">{fixture.time} • {fixture.venue}</p>
                             </div>
                           </div>
-                          <button className="px-4 py-2 text-sm font-bold text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                          <button className="px-4 py-2 text-sm font-bold text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors">
                             Details
                           </button>
                         </div>
@@ -1022,6 +1098,69 @@ function MainApp() {
                     </div>
                   </Card>
                 </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'contact' && (
+              <motion.div
+                key="contact"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="max-w-2xl mx-auto"
+              >
+                <div className="text-center mb-12">
+                  <h2 className="text-3xl font-black text-slate-900 tracking-tight uppercase italic">Contact <span className="text-emerald-600">Us</span></h2>
+                  <p className="text-slate-500 mt-2 font-medium text-lg">We'd love to hear from you!</p>
+                </div>
+
+                <Card className="p-8 shadow-2xl shadow-emerald-100/50 border-none relative overflow-visible">
+                  <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-24 h-24 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-3xl flex items-center justify-center text-white shadow-xl shadow-emerald-200 rotate-3">
+                    <Zap size={48} fill="currentColor" />
+                  </div>
+
+                  <div className="mt-12 text-center">
+                    <h3 className="text-2xl font-black text-slate-900 tracking-tight">Madhav Pradhan</h3>
+                    <p className="text-emerald-600 font-bold uppercase tracking-widest text-sm mt-1">Founder of GROUNDSCORE</p>
+                    
+                    <div className="mt-10 space-y-4">
+                      <a 
+                        href="mailto:madhavpradhan9399@gmail.com"
+                        className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 hover:bg-emerald-50 hover:text-emerald-700 transition-all group border border-transparent hover:border-emerald-100"
+                      >
+                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-slate-400 group-hover:text-emerald-600 shadow-sm">
+                          <Mail size={24} />
+                        </div>
+                        <div className="text-left">
+                          <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Email Address</p>
+                          <p className="font-bold">madhavpradhan9399@gmail.com</p>
+                        </div>
+                      </a>
+
+                      <a 
+                        href="https://instagram.com/madhav_talks_"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 hover:bg-pink-50 hover:text-pink-700 transition-all group border border-transparent hover:border-pink-100"
+                      >
+                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-slate-400 group-hover:text-pink-600 shadow-sm">
+                          <Instagram size={24} />
+                        </div>
+                        <div className="text-left">
+                          <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Instagram</p>
+                          <p className="font-bold">@madhav_talks_</p>
+                        </div>
+                      </a>
+
+                    </div>
+
+                    <div className="mt-12 p-6 bg-slate-50 rounded-2xl border border-slate-100">
+                      <p className="text-sm text-slate-500 font-medium italic">
+                        "Empowering local cricket with professional scoring and broadcasting tools."
+                      </p>
+                    </div>
+                  </div>
+                </Card>
               </motion.div>
             )}
 
@@ -1035,7 +1174,7 @@ function MainApp() {
               >
                 <div className="flex items-center gap-4 mb-8">
                   <button 
-                    onClick={() => setActiveTab('dashboard')}
+                    onClick={() => handleTabClick('dashboard')}
                     className="p-2 hover:bg-white rounded-xl text-slate-500 transition-colors"
                   >
                     <X size={24} />
@@ -1053,20 +1192,20 @@ function MainApp() {
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-6"
               >
-                <div className="flex items-center justify-between">
-                  <h2 className="text-3xl font-bold text-slate-900">Tournaments</h2>
-                  <div className="flex items-center gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <h2 className="text-2xl md:text-3xl font-bold text-slate-900">Tournaments</h2>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                       <input 
                         type="text" 
                         placeholder="Search tournaments..." 
-                        className="pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all w-64"
+                        className="pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all w-full sm:w-64"
                       />
                     </div>
                     <button 
                       onClick={() => setShowNewTournamentModal(true)}
-                      className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-indigo-700 transition-all flex items-center gap-2"
+                      className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
                     >
                       <Plus size={20} />
                       Create
@@ -1076,7 +1215,7 @@ function MainApp() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {tournaments.length > 0 ? tournaments.map((t, i) => (
-                    <Card key={i} className="group relative cursor-pointer hover:border-indigo-200 transition-all">
+                    <Card key={i} className="group relative cursor-pointer hover:border-emerald-200 transition-all">
                       <div className="h-32 bg-slate-100 relative">
                         <div className="absolute top-4 right-4 flex gap-2">
                           <span className={cn(
@@ -1097,7 +1236,7 @@ function MainApp() {
                         </div>
                       </div>
                       <div className="p-6">
-                        <h4 className="text-xl font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{t.name}</h4>
+                        <h4 className="text-xl font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">{t.name}</h4>
                         <div className="flex items-center gap-4 mt-4">
                           <div className="flex flex-col">
                             <span className="text-xs text-slate-400 uppercase font-bold">Format</span>
@@ -1129,11 +1268,11 @@ function MainApp() {
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-6"
               >
-                <div className="flex items-center justify-between">
-                  <h2 className="text-3xl font-bold text-slate-900">Teams</h2>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <h2 className="text-2xl md:text-3xl font-bold text-slate-900">Teams</h2>
                   <button 
                     onClick={() => setShowNewTeamModal(true)}
-                    className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-indigo-700 transition-all flex items-center gap-2"
+                    className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 w-full sm:w-auto"
                   >
                     <Plus size={20} />
                     Add Team
@@ -1142,7 +1281,7 @@ function MainApp() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {teams.length > 0 ? teams.map((team, i) => (
-                    <Card key={i} className="p-6 group hover:border-indigo-200 transition-all">
+                    <Card key={i} className="p-6 group hover:border-emerald-200 transition-all">
                       <div className="flex items-center gap-4 mb-6">
                         <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center overflow-hidden border-2 border-white shadow-sm">
                           <img 
@@ -1153,7 +1292,7 @@ function MainApp() {
                           />
                         </div>
                         <div className="flex-1">
-                          <h4 className="text-lg font-bold text-slate-900 group-hover:text-indigo-600 transition-colors line-clamp-1">{team.name}</h4>
+                          <h4 className="text-lg font-bold text-slate-900 group-hover:text-emerald-600 transition-colors line-clamp-1">{team.name}</h4>
                           <p className="text-sm text-slate-500 line-clamp-1">{team.tournament?.name || 'No Tournament'}</p>
                         </div>
                       </div>
@@ -1163,7 +1302,7 @@ function MainApp() {
                           onClick={() => {
                             setSelectedTeamForPlayers(team);
                           }}
-                          className="flex-1 px-4 py-2.5 bg-slate-50 text-slate-600 font-bold rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-all text-sm flex items-center justify-center gap-2"
+                          className="flex-1 px-4 py-2.5 bg-slate-50 text-slate-600 font-bold rounded-xl hover:bg-emerald-50 hover:text-emerald-600 transition-all text-sm flex items-center justify-center gap-2"
                         >
                           <Users size={16} />
                           View Players ({team.players?.length || 0})
@@ -1173,7 +1312,7 @@ function MainApp() {
                             setNewPlayer({ ...newPlayer, team_id: team.id });
                             setShowNewPlayerModal(true);
                           }}
-                          className="p-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
+                          className="p-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100"
                           title="Add Player"
                         >
                           <Plus size={20} />
@@ -1198,11 +1337,11 @@ function MainApp() {
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-6"
               >
-                <div className="flex items-center justify-between">
-                  <h2 className="text-3xl font-bold text-slate-900">Fixtures</h2>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <h2 className="text-2xl md:text-3xl font-bold text-slate-900">Fixtures</h2>
                   <button 
                     onClick={() => setShowNewMatchModal(true)}
-                    className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-indigo-700 transition-all flex items-center gap-2"
+                    className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 w-full sm:w-auto"
                   >
                     <Plus size={20} />
                     Create Match
@@ -1230,9 +1369,9 @@ function MainApp() {
                         {match.status !== 'Completed' && (
                           <button 
                             onClick={() => {
-                              setActiveTab(`scoring-${match.id}`);
+                              handleTabClick(`scoring-${match.id}`);
                             }}
-                            className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-indigo-700 transition-all"
+                            className="bg-emerald-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-emerald-700 transition-all"
                           >
                             Score Match
                           </button>
@@ -1269,9 +1408,9 @@ function MainApp() {
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden"
             >
-              <div className="p-8">
-                <div className="flex items-center justify-between mb-8">
-                  <h3 className="text-2xl font-bold text-slate-900">New Tournament</h3>
+              <div className="p-6 md:p-8">
+                <div className="flex items-center justify-between mb-6 md:mb-8">
+                  <h3 className="text-xl md:text-2xl font-bold text-slate-900">New Tournament</h3>
                   <button 
                     onClick={() => setShowNewTournamentModal(false)}
                     className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 transition-colors"
@@ -1289,7 +1428,7 @@ function MainApp() {
                         required
                         value={newTournament.name}
                         onChange={(e) => setNewTournament({...newTournament, name: e.target.value})}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                         placeholder="e.g. Summer Cup 2024"
                       />
                     </div>
@@ -1300,7 +1439,7 @@ function MainApp() {
                         <select 
                           value={newTournament.format}
                           onChange={(e) => setNewTournament({...newTournament, format: e.target.value})}
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                         >
                           <option value="T20">T20</option>
                           <option value="ODI">ODI</option>
@@ -1318,7 +1457,7 @@ function MainApp() {
                             const val = e.target.value === "" ? NaN : parseInt(e.target.value);
                             setNewTournament({...newTournament, overs: val});
                           }}
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                         />
                       </div>
                     </div>
@@ -1329,7 +1468,7 @@ function MainApp() {
                         type="text" 
                         value={newTournament.location}
                         onChange={(e) => setNewTournament({...newTournament, location: e.target.value})}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                         placeholder="e.g. Mumbai, India"
                       />
                     </div>
@@ -1346,7 +1485,7 @@ function MainApp() {
                     <button 
                       type="submit"
                       disabled={loading}
-                      className="flex-1 px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50"
+                      className="flex-1 px-6 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 disabled:opacity-50"
                     >
                       {loading ? 'Creating...' : 'Create Tournament'}
                     </button>
@@ -1375,9 +1514,9 @@ function MainApp() {
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden"
             >
-              <div className="p-8">
-                <div className="flex items-center justify-between mb-8">
-                  <h3 className="text-2xl font-bold text-slate-900">Add New Team</h3>
+              <div className="p-6 md:p-8">
+                <div className="flex items-center justify-between mb-6 md:mb-8">
+                  <h3 className="text-xl md:text-2xl font-bold text-slate-900">Add New Team</h3>
                   <button onClick={() => setShowNewTeamModal(false)} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 transition-colors">
                     <X size={24} />
                   </button>
@@ -1392,7 +1531,7 @@ function MainApp() {
                         required
                         value={newTeam.name}
                         onChange={(e) => setNewTeam({...newTeam, name: e.target.value})}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                         placeholder="e.g. Mumbai Indians"
                       />
                     </div>
@@ -1402,7 +1541,7 @@ function MainApp() {
                         required
                         value={newTeam.tournament_id}
                         onChange={(e) => setNewTeam({...newTeam, tournament_id: e.target.value})}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                       >
                         <option value="">Select Tournament</option>
                         {tournaments.map(t => (
@@ -1433,7 +1572,7 @@ function MainApp() {
                           ) : (
                             <div className="flex flex-col items-center text-slate-400">
                               {uploadingLogo ? (
-                                <Loader2 size={24} className="animate-spin text-indigo-500" />
+                                <Loader2 size={24} className="animate-spin text-emerald-500" />
                               ) : (
                                 <ImageIcon size={24} />
                               )}
@@ -1464,7 +1603,7 @@ function MainApp() {
                   </div>
                   <div className="flex gap-4 pt-4">
                     <button type="button" onClick={() => setShowNewTeamModal(false)} className="flex-1 px-6 py-3 border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50 transition-colors">Cancel</button>
-                    <button type="submit" disabled={loading} className="flex-1 px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50">
+                    <button type="submit" disabled={loading} className="flex-1 px-6 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 disabled:opacity-50">
                       {loading ? 'Adding...' : 'Add Team'}
                     </button>
                   </div>
@@ -1492,9 +1631,9 @@ function MainApp() {
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden"
             >
-              <div className="p-8">
-                <div className="flex items-center justify-between mb-8">
-                  <h3 className="text-2xl font-bold text-slate-900">Add Player</h3>
+              <div className="p-6 md:p-8">
+                <div className="flex items-center justify-between mb-6 md:mb-8">
+                  <h3 className="text-xl md:text-2xl font-bold text-slate-900">Add Player</h3>
                   <button onClick={() => setShowNewPlayerModal(false)} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 transition-colors">
                     <X size={24} />
                   </button>
@@ -1509,7 +1648,7 @@ function MainApp() {
                         required
                         value={newPlayer.name}
                         onChange={(e) => setNewPlayer({...newPlayer, name: e.target.value})}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                         placeholder="e.g. Virat Kohli"
                       />
                     </div>
@@ -1519,7 +1658,7 @@ function MainApp() {
                         required
                         value={newPlayer.role}
                         onChange={(e) => setNewPlayer({...newPlayer, role: e.target.value})}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                       >
                         <option value="Batsman">Batsman</option>
                         <option value="Bowler">Bowler</option>
@@ -1530,7 +1669,7 @@ function MainApp() {
                   </div>
                   <div className="flex gap-4 pt-4">
                     <button type="button" onClick={() => setShowNewPlayerModal(false)} className="flex-1 px-6 py-3 border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50 transition-colors">Cancel</button>
-                    <button type="submit" disabled={loading} className="flex-1 px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50">
+                    <button type="submit" disabled={loading} className="flex-1 px-6 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 disabled:opacity-50">
                       {loading ? 'Adding...' : 'Add Player'}
                     </button>
                   </div>
@@ -1558,9 +1697,9 @@ function MainApp() {
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden"
             >
-              <div className="p-8">
-                <div className="flex items-center justify-between mb-8">
-                  <h3 className="text-2xl font-bold text-slate-900">Create Match</h3>
+              <div className="p-6 md:p-8">
+                <div className="flex items-center justify-between mb-6 md:mb-8">
+                  <h3 className="text-xl md:text-2xl font-bold text-slate-900">Create Match</h3>
                   <button onClick={() => setShowNewMatchModal(false)} className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 transition-colors">
                     <X size={24} />
                   </button>
@@ -1574,7 +1713,7 @@ function MainApp() {
                         required
                         value={newMatch.tournament_id}
                         onChange={(e) => setNewMatch({...newMatch, tournament_id: e.target.value})}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                       >
                         <option value="">Select Tournament</option>
                         {tournaments.map(t => (
@@ -1589,7 +1728,7 @@ function MainApp() {
                           required
                           value={newMatch.team_a_id}
                           onChange={(e) => setNewMatch({...newMatch, team_a_id: e.target.value})}
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                         >
                           <option value="">Select Team A</option>
                           {teams.filter(team => team.tournament_id === newMatch.tournament_id).map(team => (
@@ -1603,7 +1742,7 @@ function MainApp() {
                           required
                           value={newMatch.team_b_id}
                           onChange={(e) => setNewMatch({...newMatch, team_b_id: e.target.value})}
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                         >
                           <option value="">Select Team B</option>
                           {teams.filter(team => team.tournament_id === newMatch.tournament_id && team.id !== newMatch.team_a_id).map(team => (
@@ -1617,7 +1756,7 @@ function MainApp() {
                       <select 
                         value={newMatch.status}
                         onChange={(e) => setNewMatch({...newMatch, status: e.target.value})}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                       >
                         <option value="Upcoming">Upcoming</option>
                         <option value="Live">Live</option>
@@ -1626,7 +1765,7 @@ function MainApp() {
                   </div>
                   <div className="flex gap-4 pt-4">
                     <button type="button" onClick={() => setShowNewMatchModal(false)} className="flex-1 px-6 py-3 border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50 transition-colors">Cancel</button>
-                    <button type="submit" disabled={loading} className="flex-1 px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50">
+                    <button type="submit" disabled={loading} className="flex-1 px-6 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 disabled:opacity-50">
                       {loading ? 'Creating...' : 'Create Match'}
                     </button>
                   </div>
@@ -1677,9 +1816,9 @@ function MainApp() {
                 <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                   {selectedTeamForPlayers.players && selectedTeamForPlayers.players.length > 0 ? (
                     selectedTeamForPlayers.players.map((player: any, idx: number) => (
-                      <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 group hover:border-indigo-100 hover:bg-white transition-all">
+                      <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 group hover:border-emerald-100 hover:bg-white transition-all">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center text-indigo-600 font-bold text-xs">
+                          <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-600 font-bold text-xs">
                             {idx + 1}
                           </div>
                           <span className="font-bold text-slate-700">{player.name}</span>
@@ -1702,7 +1841,7 @@ function MainApp() {
                       setSelectedTeamForPlayers(null);
                       setShowNewPlayerModal(true);
                     }}
-                    className="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2"
+                    className="w-full py-4 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 flex items-center justify-center gap-2"
                   >
                     <Plus size={20} />
                     Add New Player
@@ -1725,7 +1864,7 @@ function MainApp() {
               "fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border",
               statusMessage.type === 'success' ? "bg-emerald-50 border-emerald-100 text-emerald-700" : 
               statusMessage.type === 'error' ? "bg-rose-50 border-rose-100 text-rose-700" : 
-              "bg-indigo-50 border-indigo-100 text-indigo-700"
+              "bg-emerald-50 border-emerald-100 text-emerald-700"
             )}
           >
             {statusMessage.type === 'success' && <CheckCircle size={20} />}
@@ -1757,7 +1896,7 @@ function MainApp() {
                 <div className="flex items-center gap-4 mb-6">
                   <div className={cn(
                     "w-12 h-12 rounded-2xl flex items-center justify-center",
-                    confirmModal.type === 'danger' ? "bg-rose-100 text-rose-600" : "bg-indigo-100 text-indigo-600"
+                    confirmModal.type === 'danger' ? "bg-rose-100 text-rose-600" : "bg-emerald-100 text-emerald-600"
                   )}>
                     {confirmModal.type === 'danger' ? <Trash2 size={24} /> : <Info size={24} />}
                   </div>
@@ -1777,7 +1916,7 @@ function MainApp() {
                     }}
                     className={cn(
                       "flex-1 px-6 py-3 text-white font-bold rounded-xl transition-all shadow-lg",
-                      confirmModal.type === 'danger' ? "bg-rose-600 hover:bg-rose-700 shadow-rose-200" : "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200"
+                      confirmModal.type === 'danger' ? "bg-rose-600 hover:bg-rose-700 shadow-rose-200" : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200"
                     )}
                   >
                     Confirm

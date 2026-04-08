@@ -29,15 +29,17 @@ export const Overlay: React.FC = () => {
   const lastFetchTimeRef = React.useRef<number>(Date.now());
   const ballsSubRef = React.useRef<any>(null);
   const matchSubRef = React.useRef<any>(null);
+  const isFetchingRef = React.useRef<boolean>(false);
 
   const fetchBallsAndCalculateStats = useCallback(async (matchData?: any, playersA?: any[], playersB?: any[]) => {
     const currentMatch = matchData || match;
     const currentPlayersA = playersA || teamAPlayers;
     const currentPlayersB = playersB || teamBPlayers;
     
-    if (!matchId || !currentMatch) return;
+    if (!matchId || !currentMatch || isFetchingRef.current) return;
     
     try {
+      isFetchingRef.current = true;
       const { data: ballsData, error } = await supabase
         .from('balls')
         .select('*, bowler:players!bowler_id(*), batter:players!batter_id(*), non_striker:players!non_striker_id(*)')
@@ -109,12 +111,15 @@ export const Overlay: React.FC = () => {
         // Parse current strikers from current_score if available
         let strikerIdFromScore: string | null = null;
         let nsIdFromScore: string | null = null;
+        let bowlerIdFromScore: string | null = null;
         
         if (currentMatch.current_score) {
           const strikerMatch = currentMatch.current_score.match(/\|S:([^|]+)/);
           const nsMatch = currentMatch.current_score.match(/\|NS:([^|]+)/);
+          const bowlerMatch = currentMatch.current_score.match(/\|B:([^|]+)/);
           if (strikerMatch) strikerIdFromScore = strikerMatch[1];
           if (nsMatch) nsIdFromScore = nsMatch[1];
+          if (bowlerMatch) bowlerIdFromScore = bowlerMatch[1];
         }
 
         if (currentInningsBalls.length > 0) {
@@ -145,7 +150,13 @@ export const Overlay: React.FC = () => {
 
           setCurrentBatter(currentStriker);
           setNonStriker(currentNonStriker);
-          setCurrentBowler(lastBall.bowler);
+          
+          let currentBowler = lastBall.bowler;
+          if (bowlerIdFromScore) {
+            const foundBowler = [...currentPlayersA, ...currentPlayersB].find(p => p.id === bowlerIdFromScore);
+            if (foundBowler) currentBowler = foundBowler;
+          }
+          setCurrentBowler(currentBowler);
         } else if (currentPlayersA.length > 0 && currentPlayersB.length > 0) {
           // No balls in current innings yet, determine initial players
           const isTeamAWinner = currentMatch.toss_winner_id === currentMatch.team_a_id;
@@ -162,6 +173,8 @@ export const Overlay: React.FC = () => {
           // Still check for IDs from score even if no balls yet
           let s = battingTeam[0];
           let ns = battingTeam[1];
+          let b = bowlingTeam[0];
+          
           if (strikerIdFromScore) {
             const foundStriker = [...currentPlayersA, ...currentPlayersB].find(p => p.id === strikerIdFromScore);
             if (foundStriker) s = foundStriker;
@@ -170,10 +183,14 @@ export const Overlay: React.FC = () => {
             const foundNS = [...currentPlayersA, ...currentPlayersB].find(p => p.id === nsIdFromScore);
             if (foundNS) ns = foundNS;
           }
+          if (bowlerIdFromScore) {
+            const foundBowler = [...currentPlayersA, ...currentPlayersB].find(p => p.id === bowlerIdFromScore);
+            if (foundBowler) b = foundBowler;
+          }
 
           setCurrentBatter(s);
           setNonStriker(ns);
-          setCurrentBowler(bowlingTeam[0]);
+          setCurrentBowler(b);
         }
 
         setRuns(totalRuns);
@@ -189,15 +206,23 @@ export const Overlay: React.FC = () => {
         }
 
         // Calculate current over balls
-        let displayOverNum = currentMatch.current_score ? parseInt(currentMatch.current_score.match(/\((\d+)\./)?.[1] || '0') : 0;
+        const currentTotalBalls = totalBalls;
+        let displayOverNum = Math.floor(currentTotalBalls / 6);
         
-        // If current over has no balls, show the previous over's balls
+        // Only show balls for the current over
         let currentOverBallsData = currentInningsBalls.filter(b => b.over_number === displayOverNum);
+        
+        // Fallback: If current over is empty, show previous over's balls 
+        // BUT only if the bowler hasn't changed yet (still showing previous bowler's stats)
         if (currentOverBallsData.length === 0 && displayOverNum > 0) {
-          const prevOverBalls = currentInningsBalls.filter(b => b.over_number === displayOverNum - 1);
-          if (prevOverBalls.length > 0) {
-            displayOverNum = displayOverNum - 1;
-            currentOverBallsData = prevOverBalls;
+          const lastBall = currentInningsBalls[currentInningsBalls.length - 1];
+          const isNewBowlerSelected = bowlerIdFromScore && lastBall && bowlerIdFromScore !== lastBall.bowler_id;
+          
+          if (!isNewBowlerSelected) {
+            const prevOverBalls = currentInningsBalls.filter(b => b.over_number === displayOverNum - 1);
+            if (prevOverBalls.length > 0) {
+              currentOverBallsData = prevOverBalls;
+            }
           }
         }
 
@@ -248,6 +273,7 @@ export const Overlay: React.FC = () => {
       console.error('Unexpected error in fetchBallsAndCalculateStats:', err);
       setConsecutiveErrors(prev => prev + 1);
     } finally {
+      isFetchingRef.current = false;
       setLoading(false);
     }
   }, [matchId, match, teamAPlayers, teamBPlayers]);
@@ -382,14 +408,14 @@ export const Overlay: React.FC = () => {
     fetchInitialData();
     setupSubscriptions();
 
-    // Polling backup (every 3 seconds for faster sync)
+    // Polling backup (every 1 second for ultra-fast sync)
     pollingInterval = setInterval(() => {
       fetchBallsAndCalculateStats();
-      // Occasionally refresh match data too
+      // Occasionally refresh match data too (every 5 seconds)
       if (Math.random() > 0.8) {
         fetchInitialData();
       }
-    }, 3000);
+    }, 1000);
 
     return () => {
       if (ballsSubRef.current) supabase.removeChannel(ballsSubRef.current);
@@ -403,7 +429,7 @@ export const Overlay: React.FC = () => {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm">
         <div className="bg-white p-6 rounded-2xl shadow-xl flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+          <div className="w-10 h-10 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
           <p className="font-bold text-slate-800">Connecting to Scoreboard...</p>
         </div>
       </div>
@@ -436,6 +462,43 @@ export const Overlay: React.FC = () => {
     ? (teamABatsFirst ? match.team_b : match.team_a) 
     : (teamABatsFirst ? match.team_a : match.team_b);
 
+  const themeParam = searchParams.get('theme') || 'emerald';
+  
+  const themes: Record<string, any> = {
+    emerald: {
+      bar: "from-[#064e3b] via-[#065f46] to-[#064e3b]",
+      tab: "bg-emerald-500",
+      accent: "text-emerald-600",
+      emptyBall: "bg-emerald-50/50 text-emerald-200 border-emerald-100/50"
+    },
+    midnight: {
+      bar: "from-[#0f172a] via-[#1e293b] to-[#0f172a]",
+      tab: "bg-slate-700",
+      accent: "text-slate-600",
+      emptyBall: "bg-slate-800/50 text-slate-500 border-slate-700/50"
+    },
+    royal: {
+      bar: "from-[#1e3a8a] via-[#2563eb] to-[#1e3a8a]",
+      tab: "bg-blue-600",
+      accent: "text-blue-600",
+      emptyBall: "bg-blue-50/50 text-blue-200 border-blue-100/50"
+    },
+    crimson: {
+      bar: "from-[#7f1d1d] via-[#b91c1c] to-[#7f1d1d]",
+      tab: "bg-red-600",
+      accent: "text-red-600",
+      emptyBall: "bg-red-50/50 text-red-200 border-red-100/50"
+    },
+    gold: {
+      bar: "from-[#713f12] via-[#a16207] to-[#713f12]",
+      tab: "bg-amber-600",
+      accent: "text-amber-600",
+      emptyBall: "bg-amber-50/50 text-amber-200 border-amber-100/50"
+    }
+  };
+
+  const currentTheme = themes[themeParam] || themes.emerald;
+
   return (
     <>
       {/* Real-time Connection Status Indicator */}
@@ -449,7 +512,20 @@ export const Overlay: React.FC = () => {
         </span>
       </div>
 
-      <div className="fixed bottom-10 left-1/2 -translate-x-1/2 w-[95%] max-w-[1200px] h-[110px] bg-gradient-to-r from-[#0a2e1f] via-[#1a4e3f] to-[#0a2e1f] border-y-2 border-white/20 flex items-center shadow-2xl overflow-hidden rounded-xl">
+      <div className={cn(
+        "fixed bottom-10 left-1/2 -translate-x-1/2 w-[95%] max-w-[1200px] h-[110px] bg-gradient-to-r border-y-2 border-white/20 flex items-center shadow-2xl overflow-hidden rounded-xl backdrop-blur-md",
+        currentTheme.bar
+      )}>
+      {/* Background Pattern Overlay */}
+      <div className="absolute inset-0 opacity-10 pointer-events-none bg-cricket-pattern" />
+      
+      {/* Branding Tab */}
+      <div className={cn(
+        "absolute top-0 left-1/2 -translate-x-1/2 px-4 py-0.5 text-white text-[8px] font-black tracking-[0.4em] rounded-b-md shadow-sm z-50",
+        currentTheme.tab
+      )}>
+        GROUND SCORE
+      </div>
       {/* Left: Batting Team Logo & Batters */}
       <div className="flex items-center h-full px-4 gap-4 border-r border-white/10 flex-1 min-w-0">
         <div className="w-14 h-14 sm:w-18 sm:h-18 bg-white/10 rounded-lg flex items-center justify-center p-2 shadow-inner border border-white/5 shrink-0">
@@ -513,15 +589,19 @@ export const Overlay: React.FC = () => {
             </div>
             
             {/* Ball Tracker Row */}
-            <div className="flex gap-1.5 py-1">
-              {currentOverBalls.map((ball, i) => (
+            <div className="flex gap-2 py-1">
+              {currentOverBalls.slice(-10).map((ball, i) => (
                 <div 
                   key={i} 
                   className={cn(
-                    "rounded-full flex items-center justify-center font-black border transition-all bg-slate-50 text-slate-900 border-slate-200 shadow-sm",
-                    currentOverBalls.length > 8 ? "w-4 h-4 text-[7px]" : 
-                    currentOverBalls.length > 6 ? "w-5 h-5 text-[8px]" : 
-                    "w-6 h-6 text-[10px]"
+                    "rounded-full flex items-center justify-center font-black border transition-all shadow-md shrink-0",
+                    ball === 'W' ? "bg-rose-600 text-white border-rose-500" : 
+                    ball === '4' || ball === '6' ? "bg-emerald-600 text-white border-emerald-500" :
+                    ball === 'WD' || ball === 'NB' ? "bg-amber-500 text-white border-amber-400" :
+                    "bg-white text-slate-950 border-slate-300",
+                    currentOverBalls.slice(-10).length > 8 ? "w-4 h-4 text-[7px]" : 
+                    currentOverBalls.slice(-10).length > 6 ? "w-5 h-5 text-[8px]" : 
+                    "w-7 h-7 text-[10px]"
                   )}
                 >
                   {ball}
@@ -530,7 +610,7 @@ export const Overlay: React.FC = () => {
               {currentOverBalls.length < 6 && [...Array(6 - currentOverBalls.length)].map((_, i) => (
                 <div 
                   key={`empty-${i}`} 
-                  className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black border transition-all bg-slate-100 text-slate-300 border-slate-200 flex-shrink-0"
+                  className={cn("w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black border transition-all flex-shrink-0", currentTheme.emptyBall)}
                 />
               ))}
             </div>
@@ -540,7 +620,7 @@ export const Overlay: React.FC = () => {
             <div className="text-[9px] font-black text-slate-600 uppercase tracking-widest">
               {target !== null ? (
                 <div className="flex items-center gap-4">
-                  <span className="text-indigo-600">TARGET: {target}</span>
+                  <span className={cn("font-black", currentTheme.accent)}>TARGET: {target}</span>
                   <span className="text-slate-400">|</span>
                   <span>NEED {target - runs} FROM {((match.tournament?.overs || 20) * 6) - (overs * 6 + balls)} BALLS</span>
                 </div>
