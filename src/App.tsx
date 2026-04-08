@@ -178,6 +178,8 @@ function MainApp() {
     type: 'success' | 'error' | 'info';
   } | null>(null);
 
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+
   useEffect(() => {
     if (statusMessage) {
       const timer = setTimeout(() => setStatusMessage(null), 5000);
@@ -188,12 +190,22 @@ function MainApp() {
   useEffect(() => {
     const initAuth = async () => {
       try {
+        // Check if Supabase is reachable
+        const url = import.meta.env.VITE_SUPABASE_URL;
+        if (!url || url === 'https://placeholder.supabase.co') {
+          setConnectionError('Supabase URL is not configured. Please set VITE_SUPABASE_URL in the Settings menu.');
+          setLoading(false);
+          return;
+        }
+
         // Try to get the session from local storage first
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
           console.error('Error getting session:', error);
-          // If there's an error, we still want to stop loading to show the login page
+          if (error.message?.includes('Failed to fetch') || error.message?.includes('Network Error')) {
+            setConnectionError('Could not reach Supabase. Your project might be paused or the URL is incorrect.');
+          }
           setLoading(false);
           return;
         }
@@ -204,8 +216,11 @@ function MainApp() {
           fetchMatches(3, session.user);
           fetchTeams(3, session.user);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Auth initialization error:', err);
+        if (err.message?.includes('Failed to fetch') || err.message?.includes('Network Error')) {
+          setConnectionError('Could not reach Supabase. Your project might be paused or the URL is incorrect.');
+        }
       } finally {
         // Small delay to ensure state has propagated
         setTimeout(() => setLoading(false), 500);
@@ -247,7 +262,7 @@ function MainApp() {
   }, []);
 
   const fetchTeams = async (retries = 3, currentUser = user) => {
-    const url = (import.meta as any).env.VITE_SUPABASE_URL;
+    const url = import.meta.env.VITE_SUPABASE_URL;
     if (!url || url === 'https://placeholder.supabase.co' || !currentUser) return;
 
     try {
@@ -277,7 +292,7 @@ function MainApp() {
   };
 
   const fetchTournaments = async (retries = 3, currentUser = user) => {
-    const url = (import.meta as any).env.VITE_SUPABASE_URL;
+    const url = import.meta.env.VITE_SUPABASE_URL;
     if (!url || url === 'https://placeholder.supabase.co' || !currentUser) {
       if (!url || url === 'https://placeholder.supabase.co') {
         setSupabaseError('Supabase URL is missing or set to placeholder. Please configure it in Settings.');
@@ -314,7 +329,7 @@ function MainApp() {
   };
 
   const fetchMatches = async (retries = 3, currentUser = user) => {
-    const url = (import.meta as any).env.VITE_SUPABASE_URL;
+    const url = import.meta.env.VITE_SUPABASE_URL;
     if (!url || url === 'https://placeholder.supabase.co' || !currentUser) return;
 
     try {
@@ -599,6 +614,35 @@ function MainApp() {
   };
 ;
 
+  if (connectionError) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-3xl shadow-xl p-8 text-center border border-red-100">
+          <div className="w-20 h-20 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6">
+            <AlertCircle size={40} />
+          </div>
+          <h1 className="text-2xl font-black text-slate-900 mb-4">Connection Error</h1>
+          <p className="text-slate-600 mb-8 leading-relaxed">
+            {connectionError}
+            <br /><br />
+            <span className="text-sm font-bold text-slate-400 uppercase tracking-widest">Troubleshooting:</span>
+            <ul className="text-left text-sm mt-4 space-y-2 text-slate-500 list-disc pl-5">
+              <li>Check if your Supabase project is <strong>paused</strong> in the Supabase dashboard.</li>
+              <li>Verify <strong>VITE_SUPABASE_URL</strong> and <strong>VITE_SUPABASE_ANON_KEY</strong> in the Settings menu.</li>
+              <li>Ensure you have a stable internet connection.</li>
+            </ul>
+          </p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="w-full py-4 bg-indigo-600 text-white font-black rounded-2xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
+          >
+            RETRY CONNECTION
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -793,7 +837,7 @@ function MainApp() {
             </div>
             <button 
               onClick={async () => {
-                const url = (import.meta as any).env?.VITE_SUPABASE_URL;
+                const url = import.meta.env.VITE_SUPABASE_URL;
                 if (!url) {
                   setStatusMessage({ text: 'Supabase URL not configured.', type: 'error' });
                   return;
@@ -826,7 +870,7 @@ function MainApp() {
         )}
 
         {/* Supabase Error Banner */}
-        {(!(import.meta as any).env?.VITE_SUPABASE_URL || (import.meta as any).env?.VITE_SUPABASE_URL === 'https://placeholder.supabase.co' || supabaseError || !navigator.onLine) && (
+        {(!import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL === 'https://placeholder.supabase.co' || supabaseError || !navigator.onLine) && (
           <div className="bg-amber-50 border-b border-amber-100 p-4 flex items-center justify-between mx-8 mt-8 rounded-2xl">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600">

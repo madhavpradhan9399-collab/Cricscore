@@ -60,7 +60,7 @@ export const Overlay: React.FC = () => {
         let totalBalls = 0;
         let firstInningsRuns = 0;
         
-        const currentInnings = match?.current_innings || 1;
+        const currentInnings = currentMatch?.current_innings || 1;
 
         ballsData.forEach((ball: any) => {
           // Calculate 1st innings runs for target
@@ -269,7 +269,7 @@ export const Overlay: React.FC = () => {
       return;
     }
 
-    const url = (import.meta as any).env?.VITE_SUPABASE_URL;
+    const url = import.meta.env.VITE_SUPABASE_URL;
     if (!url || url === 'https://placeholder.supabase.co') {
       setError('Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in the Settings menu.');
       setLoading(false);
@@ -529,9 +529,9 @@ export const Overlay: React.FC = () => {
             <div className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
               {target !== null ? (
                 <div className="flex items-center gap-4">
-                  <span>TARGET: {target}</span>
+                  <span className="text-indigo-600">TARGET: {target}</span>
                   <span className="text-slate-400">|</span>
-                  <span>NEED {target - runs} FROM {(match.overs_limit * 6) - (overs * 6 + balls)} BALLS</span>
+                  <span>NEED {target - runs} FROM {((match.tournament?.overs || 20) * 6) - (overs * 6 + balls)} BALLS</span>
                 </div>
               ) : match.toss_winner_id ? (
                 <>

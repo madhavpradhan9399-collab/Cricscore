@@ -108,7 +108,7 @@ export const ScoringPanel: React.FC<ScoringPanelProps> = ({ matchId, user }) => 
   };
 
   const fetchMatch = async (retries = 3) => {
-    const url = (import.meta as any).env?.VITE_SUPABASE_URL;
+    const url = import.meta.env.VITE_SUPABASE_URL;
     if (!url || url === 'https://placeholder.supabase.co') {
       setLoading(false);
       return;
@@ -122,7 +122,7 @@ export const ScoringPanel: React.FC<ScoringPanelProps> = ({ matchId, user }) => 
     try {
       const { data, error } = await supabase
         .from('matches')
-        .select('*, team_a:teams!team_a_id(name, id), team_b:teams!team_b_id(name, id)')
+        .select('*, team_a:teams!team_a_id(name, id), team_b:teams!team_b_id(name, id), tournament:tournaments(*)')
         .eq('id', matchId)
         .or(`user_id.eq.${user.id},user_id.is.null`)
         .single();
@@ -561,6 +561,77 @@ export const ScoringPanel: React.FC<ScoringPanelProps> = ({ matchId, user }) => 
     }
   };
 
+  const undoLastBall = async () => {
+    if (!match) return;
+    
+    try {
+      // 1. Find the last ball for this match and current innings
+      const { data: lastBalls, error: fetchError } = await supabase
+        .from('balls')
+        .select('*')
+        .eq('match_id', matchId)
+        .eq('innings', match.current_innings || 1)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (fetchError) throw fetchError;
+      
+      if (!lastBalls || lastBalls.length === 0) {
+        setStatusMessage({ text: 'No balls to undo in this innings.', type: 'info' });
+        return;
+      }
+
+      // 2. Delete the last ball
+      const { error: deleteError } = await supabase
+        .from('balls')
+        .delete()
+        .eq('id', lastBalls[0].id);
+
+      if (deleteError) throw deleteError;
+
+      // 3. Fetch all remaining balls to recalculate the score
+      const { data: remainingBalls } = await supabase
+        .from('balls')
+        .select('*')
+        .eq('match_id', matchId)
+        .eq('innings', match.current_innings || 1);
+
+      let newRuns = 0;
+      let newWickets = 0;
+      let totalLegitBalls = 0;
+
+      if (remainingBalls) {
+        remainingBalls.forEach((b: any) => {
+          newRuns += (b.runs || 0) + (b.extra_runs || 0);
+          if (b.is_wicket) newWickets += 1;
+          if (!b.extra_type || b.extra_type === 'Bye' || b.extra_type === 'Leg Bye') {
+            totalLegitBalls += 1;
+          }
+        });
+      }
+
+      const newOvers = Math.floor(totalLegitBalls / 6);
+      const newBallsInOver = totalLegitBalls % 6;
+
+      // 4. Update match score in database
+      // We also need to determine who the strikers should be. 
+      // For simplicity, we'll let fetchMatch handle the striker derivation from the remaining balls.
+      const scoreStr = `${newRuns}/${newWickets} (${newOvers}.${newBallsInOver})`;
+      
+      await supabase
+        .from('matches')
+        .update({ current_score: scoreStr })
+        .eq('id', matchId);
+
+      // 5. Re-fetch match to refresh UI
+      await fetchMatch();
+      setStatusMessage({ text: 'Last ball undone successfully.', type: 'success' });
+    } catch (err: any) {
+      console.error('Error undoing last ball:', err);
+      setStatusMessage({ text: `Failed to undo: ${err.message}`, type: 'error' });
+    }
+  };
+
   const updateToss = async (winnerId: string, decision: string) => {
     setUpdatingToss(true);
     const { error } = await supabase
@@ -802,7 +873,7 @@ export const ScoringPanel: React.FC<ScoringPanelProps> = ({ matchId, user }) => 
           </div>
           {target !== null && (
             <p className="text-indigo-400 text-xs font-black mt-2 uppercase tracking-widest">
-              Target: {target} | Need {target - runs} from {(match.overs_limit * 6) - (overs * 6 + balls)} balls
+              Target: {target} | Need {target - runs} from {((match.tournament?.overs || 20) * 6) - (overs * 6 + balls)} balls
             </p>
           )}
           <p className="text-[#8e8ecf] text-[10px] font-black tracking-widest mt-3">CRR: {((overs + balls/6) > 0 ? (runs / (overs + balls/6)) : 0).toFixed(2)}</p>
@@ -918,6 +989,7 @@ export const ScoringPanel: React.FC<ScoringPanelProps> = ({ matchId, user }) => 
                 WICKET
               </button>
               <button
+                onClick={undoLastBall}
                 className="h-12 rounded-xl bg-white border-2 border-slate-200 text-slate-400 hover:border-indigo-600 hover:text-indigo-600 transition-all font-black text-sm flex items-center justify-center gap-2"
               >
                 <RotateCcw size={18} />
